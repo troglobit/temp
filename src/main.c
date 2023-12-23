@@ -12,13 +12,17 @@
 #include "log.h"
 
 #define HWMON_PATH    "/sys/class/hwmon/"
-#define HWMON_TRIP    "temp1_crit"
+#define HWMON_NAME    "temp%d_label"
+#define HWMON_TEMP    "temp%d_input"
+#define HWMON_TRIP    "temp%d_crit"
+#define HWMON_TALT    "temp%d_max"
 #define THERMAL_PATH  "/sys/class/thermal/"
 #define THERMAL_TRIP  "trip_point_0_temp"
 
 struct temp {
 	TAILQ_ENTRY(temp) link; /* BSD sys/queue.h linked list node. */
 
+	int   id;
 	char  name[32];
 	char *temp;
 	char *crit;
@@ -31,6 +35,17 @@ struct temp {
 };
 
 static TAILQ_HEAD(shead, temp) sensors = TAILQ_HEAD_INITIALIZER(sensors);
+
+static char *paste(char *path, size_t len, char *file, size_t offset)
+{
+	if (offset >= len)
+		return NULL;
+
+	path[offset] = 0;
+	strlcat(path, file, len);
+
+	return path;
+}
 
 static char *read_file(const char *fn, char *buf, size_t len)
 {
@@ -47,44 +62,77 @@ static char *read_file(const char *fn, char *buf, size_t len)
 	return ptr;
 }
 
-static char *find_sensor(struct temp *sensor, char *path)
+static char *sensor_hwmon(struct temp *sensor, char *temp, char *path, size_t len)
 {
-	size_t len = strlen(path) + strlen(THERMAL_TRIP) + 3;
-	char *crit, *ptr;
+	size_t offset = strlen(path);
+	char file[32];
 
-	crit = malloc(len);
-	if (!crit) {
-		ERR(errno, "Critical, cannot get memory for %s", path);
+	DBG("hwmon: %s", &temp[offset]);
+	if (sscanf(&temp[offset], "temp%d_input", &sensor->id) != 1)
+		return NULL;
+
+	DBG("Got ID %d", sensor->id);
+
+	snprintf(file, sizeof(file), HWMON_NAME, sensor->id);
+	if (!read_file(paste(path, len, file, offset), sensor->name, sizeof(sensor->name)))
+		read_file(paste(path, len, "name", offset), sensor->name, sizeof(sensor->name));
+
+	snprintf(file, sizeof(file), HWMON_TRIP, sensor->id);
+	if (fexist(paste(path, len, file, offset)))
+		return sensor->crit = path;
+
+	snprintf(file, sizeof(file), HWMON_TALT, sensor->id);
+	if (fexist(paste(path, len, file, offset)))
+		return sensor->crit = path;
+
+	free(path);
+	return sensor->name[0] ? sensor->name : NULL;
+}
+
+static char *sensor_thermal(struct temp *sensor, char *temp, char *path, size_t len)
+{
+	size_t offset = strlen(path);
+
+	DBG("thermal: %s", &temp[offset]);
+	if (sscanf(temp, THERMAL_PATH "thermal_zone%d/temp", &sensor->id) != 1)
+		return NULL;
+
+	DBG("Got ID %d", sensor->id);
+	read_file(paste(path, len, "type", offset), sensor->name, sizeof(sensor->name));
+
+	if (fexist(paste(path, len, THERMAL_TRIP, offset)))
+		return sensor->crit = path;
+
+	return NULL;
+}
+
+static char *find_sensor(struct temp *sensor, char *temp)
+{
+	size_t len = strlen(temp) + 32;
+	char *path, *ptr;
+
+	path = malloc(len);
+	if (!path) {
+		ERR(errno, "Critical, cannot get memory for %s", temp);
 		return NULL;
 	}
 
-	strlcpy(crit, path, len);
-	ptr = rindex(crit, '/');
+	strlcpy(path, temp, len);
+	ptr = rindex(path, '/');
 	if (!ptr)
 		goto fail;
 	*(++ptr) = 0;
 
-	DBG("Base path %s len %zd", crit, len);
-	if (!strncmp(crit, HWMON_PATH, strlen(HWMON_PATH))) {
-		strlcat(crit, "name", len);
-		read_file(crit, sensor->name, sizeof(sensor->name));
+	DBG("Base path %s len %zd", path, len);
+	if (!strncmp(path, HWMON_PATH, strlen(HWMON_PATH)))
+		return sensor_hwmon(sensor, temp, path, len);
+	else if (!strncmp(path, THERMAL_PATH, strlen(THERMAL_PATH)))
+		return sensor_thermal(sensor, temp, path, len);
 
-		*ptr = 0;
-		strlcat(crit, HWMON_TRIP, len);
-	} else if (!strncmp(crit, THERMAL_PATH, strlen(THERMAL_PATH))) {
-		strlcat(crit, "type", len);
-		read_file(crit, sensor->name, sizeof(sensor->name));
-
-		*ptr = 0;
-		strlcat(crit, THERMAL_TRIP, len);
-	} else
-		goto fail;
-
-	DBG("Critical path %s", crit);
-	return sensor->crit = crit;
 fail:
-	ERR(0, "This does not look like a temp sensor %s", path);
-	free(crit);
+	ERR(0, "This does not look like a temp sensor %s", temp);
+	free(path);
+
 	return NULL;
 }
 
