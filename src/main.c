@@ -63,6 +63,38 @@ static char *read_file(const char *fn, char *buf, size_t len)
 	return ptr;
 }
 
+static float read_temp(const char *path)
+{
+	float temp = 0.0;
+	char buf[10];
+
+	/* could be sensor with missing crit/max/trip, ignore */
+	if (!path)
+		return temp;
+
+	DBG("Reading sensor %s", path);
+	if (read_file(path, buf, sizeof(buf))) {
+		int tmp;
+
+		DBG("Raw temp %s", buf);
+		tmp  = atoi(buf);
+		temp = (float)tmp / 1000;
+		DBG("Got temp %.1f°C", temp);
+	}
+
+	return temp;
+}
+
+static int sanity_check(const char *path)
+{
+	float temp = read_temp(path);
+
+	if (temp == 0.0 ||  temp < -150.0 || temp > 150.0)
+		return 1;
+
+	return 0;
+}
+
 static char *sensor_hwmon(struct temp *sensor, char *temp, char *path, size_t len)
 {
 	size_t offset = strlen(path);
@@ -73,6 +105,10 @@ static char *sensor_hwmon(struct temp *sensor, char *temp, char *path, size_t le
 		return NULL;
 
 	DBG("Got ID %d", sensor->id);
+	if (sanity_check(temp)) {
+		INFO("Improbable value detected, skipping %s", temp);
+		goto fail;
+	}
 
 	snprintf(file, sizeof(file), HWMON_NAME, sensor->id);
 	if (!read_file(paste(path, len, file, offset), sensor->name, sizeof(sensor->name)))
@@ -150,6 +186,7 @@ static void add_sensor(char *path)
 	if (!sensor)
 		goto fail;
 
+	DBG("Checking sensor %s ...", path);
 	sensor->temp = strdup(path);
 	if (!sensor->temp) {
 	fail:
@@ -182,28 +219,6 @@ static float calc_mean(struct temp *sensor)
 	}
 
 	return mean / valid;
-}
-
-static float read_temp(const char *path)
-{
-	float temp = 0.0;
-	char buf[10];
-
-	/* could be sensor with missing crit/max/trip, ignore */
-	if (!path)
-		return temp;
-
-	DBG("Reading sensor %s", path);
-	if (read_file(path, buf, sizeof(buf))) {
-		int tmp;
-
-		DBG("Raw temp %s", buf);
-		tmp  = atoi(buf);
-		temp = (float)tmp / 1000;
-		DBG("Got temp %.1f°C", temp);
-	}
-
-	return temp;
 }
 
 static void poll_temp(uev_t *w, void *arg, int events)
