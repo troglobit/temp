@@ -103,7 +103,7 @@ static char *sensor_thermal(struct temp *sensor, char *temp, char *path, size_t 
 	if (fexist(paste(path, len, THERMAL_TRIP, offset)))
 		return sensor->crit = path;
 
-	return NULL;
+	return sensor->name[0] ? sensor->name : NULL;
 }
 
 static char *find_sensor(struct temp *sensor, char *temp)
