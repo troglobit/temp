@@ -188,6 +188,7 @@ static float read_temp(const char *path)
 	float temp = 0.0;
 	char buf[10];
 
+	/* could be sensor with missing crit/max/trip, ignore */
 	if (!path)
 		return temp;
 
@@ -207,6 +208,7 @@ static float read_temp(const char *path)
 static void poll_temp(uev_t *w, void *arg, int events)
 {
 	struct temp *sensor = (struct temp *)arg;
+	char crit[32] = { 0 };
 	float temp;
 
 	temp = read_temp(sensor->temp);
@@ -214,8 +216,11 @@ static void poll_temp(uev_t *w, void *arg, int events)
 	if (sensor->pos == NELEMS(sensor->data))
 		sensor->pos = 0;
 
-	LOG("%15s: current %.1f°C, mean %.1f°C, critical %.1f°C", sensor->name,
-	    temp, calc_mean(sensor), sensor->tcrit);
+	if (sensor->crit)
+		snprintf(crit, sizeof(crit), ", critical %.1f°C", sensor->tcrit);
+
+	LOG("%15s: current %.1f°C, mean %.1f°C%s", sensor->name,
+	    temp, calc_mean(sensor), crit);
 }
 
 int main(int argc, char *argv[])
