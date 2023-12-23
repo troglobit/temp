@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: ISC */
 
 #include <errno.h>
+#include <dirent.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 #include <libite/lite.h>
 #include <libite/queue.h>
@@ -179,12 +181,13 @@ fail:
 	return NULL;
 }
 
-static void add_sensor(char *path)
+static void add_sensor(char *path, int silent)
 {
 	struct temp *sensor;
 
 	if (!fexist(path)) {
-		ERR(errno, "Missing sensor %s, skipping", path);
+		if (!silent)
+			ERR(errno, "Missing sensor %s, skipping", path);
 		return;
 	}
 
@@ -196,19 +199,47 @@ static void add_sensor(char *path)
 	sensor->temp = strdup(path);
 	if (!sensor->temp) {
 	fail:
-		ERR(errno, "Failed setting up sensor %s", path);
+		if (!silent)
+			ERR(errno, "Failed setting up sensor %s", path);
 		free(sensor);
 		return;
 	}
 
 	if (!find_sensor(sensor, path)) {
-		ERR(ENOENT, "Cannot find sensor %s, skipping!", sensor->temp);
+		if (!silent)
+			ERR(0, "Cannot find sensor %s, skipping.", sensor->temp);
 		free(sensor->temp);
 		free(sensor);
 		return;
 	}
 
 	TAILQ_INSERT_TAIL(&sensors, sensor, link);
+}
+
+static int find_hwmon(void)
+{
+	struct dirent *d;
+	DIR *dir;
+
+	dir = opendir(HWMON_PATH);
+	if (!dir)
+		return -1;
+
+	while ((d = readdir(dir))) {
+		char path[sizeof(HWMON_PATH) + strlen(d->d_name) + 14];
+
+		if (d->d_type != DT_LNK)
+			continue;
+
+		for (int i = 1; i < 10; i++) {
+			snprintf(path, sizeof(path), "%s%s/temp%d_input", HWMON_PATH, d->d_name, i);
+			add_sensor(path, 1);
+		}
+	}
+
+	closedir(dir);
+
+	return TAILQ_EMPTY(&sensors);
 }
 
 static float calc_mean(struct temp *sensor)
@@ -297,7 +328,7 @@ int main(int argc, char *argv[])
 			break;
 
 		case 't':
-			add_sensor(optarg);
+			add_sensor(optarg, 0);
 			break;
 
 		default:
@@ -306,8 +337,10 @@ int main(int argc, char *argv[])
 	}
 
 	if (TAILQ_EMPTY(&sensors)) {
-		ERR(0, "Need at least one temp sensor to start.");
-		return 1;
+		if (find_hwmon()) {
+			ERR(0, "Need at least one temp sensor to start.");
+			return 1;
+		}
 	}
 
 	log_init(do_syslog);
