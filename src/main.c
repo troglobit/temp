@@ -41,7 +41,8 @@ static char *paste(char *path, size_t len, char *file, size_t offset)
 	if (offset >= len)
 		return NULL;
 
-	path[offset] = 0;
+	if (offset > 0)
+		path[offset] = 0;
 	strlcat(path, file, len);
 
 	return path;
