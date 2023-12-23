@@ -223,12 +223,33 @@ static void poll_temp(uev_t *w, void *arg, int events)
 	    temp, calc_mean(sensor), crit);
 }
 
+static void term(uev_t *w, void *arg, int events)
+{
+	struct temp *sensor, *tmp;
+
+	INFO("Received signal %d, exiting ...", w->signo);
+
+	TAILQ_FOREACH_SAFE(sensor, &sensors, link, tmp) {
+		uev_timer_stop(&sensor->watcher);
+
+		TAILQ_REMOVE(&sensors, sensor, link);
+		free(sensor->temp);
+		if (sensor->crit)
+			free(sensor->crit);
+		free(sensor);
+	}
+
+	uev_exit(w->ctx);
+}
+
 int main(int argc, char *argv[])
 {
 	int do_background = 1;
 	int do_syslog  = 1;
 	struct temp *s;
 	uev_ctx_t ctx;
+	uev_t sigterm;
+	uev_t sigint;
 	int c;
 
 	while ((c = getopt(argc, argv, "hl:nst:")) != EOF) {
@@ -278,6 +299,9 @@ int main(int argc, char *argv[])
 		ERR(errno, "Failed creating loop context.");
 		return 1;
 	}
+
+	uev_signal_init(&ctx, &sigterm, term, NULL, SIGTERM);
+	uev_signal_init(&ctx, &sigint,  term, NULL, SIGINT);
 
 	TAILQ_FOREACH(s, &sensors, link) {
 		s->tcrit = read_temp(s->crit);
