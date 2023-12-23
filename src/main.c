@@ -100,9 +100,10 @@ static char *sensor_hwmon(struct temp *sensor, char *temp, char *path, size_t le
 	size_t offset = strlen(path);
 	char file[32];
 
-	DBG("hwmon: %s", &temp[offset]);
-	if (sscanf(&temp[offset], "temp%d_input", &sensor->id) != 1)
-		return NULL;
+	if (sscanf(&temp[offset], "temp%d_input", &sensor->id) != 1) {
+		INFO("Failed reading ID from %s", temp);
+		goto fail;
+	}
 
 	DBG("Got ID %d", sensor->id);
 	if (sanity_check(temp)) {
@@ -114,15 +115,19 @@ static char *sensor_hwmon(struct temp *sensor, char *temp, char *path, size_t le
 	if (!read_file(paste(path, len, file, offset), sensor->name, sizeof(sensor->name)))
 		read_file(paste(path, len, "name", offset), sensor->name, sizeof(sensor->name));
 
-	snprintf(file, sizeof(file), HWMON_TRIP, sensor->id);
-	if (fexist(paste(path, len, file, offset)))
-		return sensor->crit = path;
-
 	snprintf(file, sizeof(file), HWMON_TALT, sensor->id);
 	if (fexist(paste(path, len, file, offset)))
-		return sensor->crit = path;
+		sensor->crit = path;
 
-	free(path);
+	snprintf(file, sizeof(file), HWMON_TRIP, sensor->id);
+	if (fexist(paste(path, len, file, offset)))
+		sensor->crit = path;
+fail:
+	if (!sensor->crit || sanity_check(sensor->crit)) {
+		sensor->crit = NULL;
+		free(path);
+	}
+
 	return sensor->name[0] ? sensor->name : NULL;
 }
 
