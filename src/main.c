@@ -135,9 +135,10 @@ static char *sensor_thermal(struct temp *sensor, char *temp, char *path, size_t 
 {
 	size_t offset = strlen(path);
 
-	DBG("thermal: %s", &temp[offset]);
-	if (sscanf(temp, THERMAL_PATH "thermal_zone%d/temp", &sensor->id) != 1)
+	if (sscanf(temp, THERMAL_PATH "thermal_zone%d/temp", &sensor->id) != 1) {
+		INFO("Failed reading ID from %s", temp);
 		return NULL;
+	}
 
 	DBG("Got ID %d", sensor->id);
 	read_file(paste(path, len, "type", offset), sensor->name, sizeof(sensor->name));
