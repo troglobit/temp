@@ -45,7 +45,7 @@ void logit(int severity, const char *fmt, ...)
 		file = stderr;
 
         va_start(args, fmt);
-	if (print)
+	if (!print)
 		vsyslog(severity, fmt, args);
 	else if (severity <= level) {
 		if (level == LOG_DEBUG)
