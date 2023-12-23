@@ -25,7 +25,7 @@ int log_level(char *arg)
 {
 	for (int i = 0; prioritynames[i].c_name; i++) {
 		if (string_match(prioritynames[i].c_name, arg))
-			return prioritynames[i].c_val;
+			return level = prioritynames[i].c_val;
 	}
 
 	return level = atoi(arg);
