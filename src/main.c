@@ -68,6 +68,37 @@ static char *read_file(const char *fn, char *buf, size_t len)
 	return ptr;
 }
 
+static void write_file(uev_t *w, void *arg, int events)
+{
+	char *fn = (char *)arg;
+	struct temp *s;
+	FILE *fp;
+
+	fp = fopen(fn, "w");
+	if (!fp) {
+		ERR(errno, "Failed writing to %s", fn);
+		return;
+	}
+
+	fprintf(fp, "[\n");
+	TAILQ_FOREACH(s, &sensors, link) {
+		fprintf(fp, "  {\n");
+		fprintf(fp, "    \"name\": \"%s\",\n", s->name);
+		fprintf(fp, "    \"file\": \"%s\",\n", s->temp);
+		if (s->crit)
+			fprintf(fp, "    \"critical\": \"%.1f\",\n", s->tcrit);
+		fprintf(fp, "    \"temperature\": [ ");
+		for (size_t i = 0; i < NELEMS(s->tdata); i++)
+			fprintf(fp, "%s\"%.1f\"", i != 0 ? ", " : "", s->tdata[i]);
+		fprintf(fp, " ],\n");
+		fprintf(fp, "    \"interval\": %d\n", POLL_INTERVAL);
+		fprintf(fp, "  }%s\n", TAILQ_NEXT(s, link) != TAILQ_END(&sensors) ? "," : "");
+	}
+	fprintf(fp, "]\n");
+
+	fclose(fp);
+}
+
 static float read_temp(const char *path)
 {
 	float temp = 0.0;
@@ -301,18 +332,24 @@ static void term(uev_t *w, void *arg, int events)
 int main(int argc, char *argv[])
 {
 	int do_background = 1;
+	char *do_file = NULL;
 	int do_syslog  = 1;
 	struct temp *s;
 	uev_ctx_t ctx;
 	uev_t sigterm;
 	uev_t sigint;
+	uev_t filer;
 	int c;
 
-	while ((c = getopt(argc, argv, "hl:nst:")) != EOF) {
+	while ((c = getopt(argc, argv, "hf:l:nst:")) != EOF) {
 		switch (c) {
 		case 'h':
-			printf("usage: %s [-hns] [-l LOG_LEVEL] [-t PATH]\n", argv[0]);
+			printf("usage: %s [-hns] [-f FILE] [-l LOG_LEVEL] [-t PATH]\n", argv[0]);
 			return 0;
+
+		case 'f':
+			do_file = optarg;
+			break;
 
 		case 'l':
 			if (-1 == log_level(optarg)) {
@@ -365,6 +402,9 @@ int main(int argc, char *argv[])
 		s->tcrit = read_temp(s->crit);
 		uev_timer_init(&ctx, &s->watcher, poll_temp, s, 100, POLL_INTERVAL);
 	}
+
+	if (do_file)
+		uev_timer_init(&ctx, &filer, write_file, do_file, 100, POLL_INTERVAL);
 
 	return uev_run(&ctx, 0);
 }
