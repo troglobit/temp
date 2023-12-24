@@ -335,6 +335,7 @@ static void term(uev_t *w, void *arg, int events)
 
 int main(int argc, char *argv[])
 {
+	int poll_interval = POLL_INTERVAL;
 	int do_background = 1;
 	int do_syslog  = 1;
 	char *file = NULL;
@@ -345,14 +346,22 @@ int main(int argc, char *argv[])
 	uev_t filer;
 	int c;
 
-	while ((c = getopt(argc, argv, "hf:l:nst:")) != EOF) {
+	while ((c = getopt(argc, argv, "hf:i:l:nst:")) != EOF) {
 		switch (c) {
 		case 'h':
-			printf("usage: %s [-hns] [-f FILE] [-l LOG_LEVEL] [-t PATH]\n", argv[0]);
+			printf("usage: %s [-hns] [-f FILE] [-i MSEC] [-l LOG_LEVEL] [-t PATH]\n", argv[0]);
 			return 0;
 
 		case 'f':
 			file = optarg;
+			break;
+
+		case 'i':
+			poll_interval = atoi(optarg);
+			if (poll_interval < 100) {
+				ERR(0, "Invalid, or too small poll interval, min 100 msec.");
+				return 1;
+			}
 			break;
 
 		case 'l':
@@ -404,11 +413,11 @@ int main(int argc, char *argv[])
 
 	TAILQ_FOREACH(s, &sensors, link) {
 		s->tcrit = read_temp(s->crit);
-		uev_timer_init(&ctx, &s->watcher, poll_temp, s, 100, POLL_INTERVAL);
+		uev_timer_init(&ctx, &s->watcher, poll_temp, s, 100, poll_interval);
 	}
 
 	if (file)
-		uev_timer_init(&ctx, &filer, write_file, file, 100, POLL_INTERVAL);
+		uev_timer_init(&ctx, &filer, write_file, file, 100, poll_interval);
 
 	return uev_run(&ctx, 0);
 }
