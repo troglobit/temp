@@ -321,11 +321,9 @@ static void poll_temp(uev_t *w, void *arg, int events)
 		LOG("%15s: current %.1f°C, mean %.1f°C%s", sensor->name, temp, calc_mean(sensor), crit);
 }
 
-static void term(uev_t *w, void *arg, int events)
+static void free_sensors(void)
 {
 	struct temp *sensor, *tmp;
-
-	INFO("Received signal %d, exiting ...", w->signo);
 
 	TAILQ_FOREACH_SAFE(sensor, &sensors, link, tmp) {
 		uev_timer_stop(&sensor->watcher);
@@ -336,14 +334,26 @@ static void term(uev_t *w, void *arg, int events)
 			free(sensor->crit);
 		free(sensor);
 	}
+}
 
+static void term(uev_t *w, void *arg, int events)
+{
+	INFO("Received signal %d, exiting ...", w->signo);
+	free_sensors();
+	uev_exit(w->ctx);
+}
+
+static void timeout(uev_t *w, void *arg, int events)
+{
+	INFO("Run time over, exiting ...");
+	free_sensors();
 	uev_exit(w->ctx);
 }
 
 static int usage(int code)
 {
 	printf("Usage:\n"
-	       "  %s [-hnqs] [-f FILE] [-i MSEC] [-l LEVEL] [-t PATH]\n"
+	       "  %s [-hnqs] [-f FILE] [-i MSEC] [-l LEVEL] [-r SEC] [-t PATH]\n"
 	       "\n"
 	       "Options:\n"
 	       "  -h         Show this help text\n"
@@ -352,6 +362,7 @@ static int usage(int code)
 	       "  -l LEVEL   Set log level: none, err, notice (default), info, debug\n"
 	       "  -n         Run in foreground, do not detach from controlling terminal\n"
 	       "  -q         Quiet mode, useful with -f option\n"
+	       "  -r SEC     Run time, in seconds, before program stops, default: forever\n"
 	       "  -s         Use syslog, even if running in foreground, default w/o -n\n"
 	       "  -t PATH    Path to temperature sensor, may be given multiple times\n"
 	       "\n"
@@ -380,6 +391,7 @@ int main(int argc, char *argv[])
 	int poll_interval = POLL_INTERVAL;
 	int do_background = 1;
 	int do_syslog  = 1;
+	int do_runtime = 0;
 	char *file = NULL;
 	const char *err;
 	struct temp *s;
@@ -387,10 +399,11 @@ int main(int argc, char *argv[])
 	uev_t sigterm;
 	uev_t sigint;
 	uev_t filer;
+	uev_t timer;
 	int c;
 
 	prognm = progname(argv[0]);
-	while ((c = getopt(argc, argv, "hf:i:l:nqst:")) != EOF) {
+	while ((c = getopt(argc, argv, "hf:i:l:nqr:st:")) != EOF) {
 		switch (c) {
 		case 'h':
 			return usage(0);
@@ -421,6 +434,14 @@ int main(int argc, char *argv[])
 
 		case 'q':
 			do_quiet = 1;
+			break;
+
+		case 'r':
+			do_runtime = strtonum(optarg, 1, LLONG_MAX / 1000, &err);
+			if (err) {
+				ERR(0, "Run time %s, [1, %lld]", err, LLONG_MAX / 1000);
+				return 1;
+			}
 			break;
 
 		case 's':
@@ -465,6 +486,8 @@ int main(int argc, char *argv[])
 
 	if (file)
 		uev_timer_init(&ctx, &filer, write_file, file, 100, poll_interval);
+	if (do_runtime)
+		uev_timer_init(&ctx, &timer, timeout, NULL, do_runtime * 1000, 0);
 
 	return uev_run(&ctx, 0);
 }
