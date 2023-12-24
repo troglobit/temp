@@ -1,13 +1,14 @@
 Template Project
 ================
 
-Use this project as a template for your next little C project.  It comes
-with a simple event loop from [libuEv][1], which uses all the new fancy
-Linux kernel stuff.  The template also comes with lots of "frog DNA"
-from [libite (-lite)][2], for that made easy C programming environment.
+This project can be used as a template for your next little C project.
+It comes with lots of "frog DNA" from [libite (-lite)][1], that holds
+utility functions missing from the standard C library, and an `epoll()`
+based event loop from [libuEv][1] -- all you need for that made-easy
+programming experience!
 
 The project is built using GNU autotools, in a special stripped-down
-setup that even the most die-hard CMake or Meson champoin will find
+setup that even the most die-hard CMake or Meson champion will find
 user friendly.
 
 
@@ -18,10 +19,9 @@ Take Care!
 Example
 -------
 
-The included source is an example of how to periodically poll a Linux
-hwmon temperature sensor and save that to a JSON file for consumption
+The included source is an example of how to periodically poll the Linux
+hwmon temperature sensors and save data to a JSON file for consumption
 by some other tool.
 
-
-[1]: https://github.com/troglobit/libuev
-[2]: https://github.com/troglobit/libite
+[1]: https://github.com/troglobit/libite
+[2]: https://github.com/troglobit/libuev
