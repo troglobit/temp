@@ -336,8 +336,8 @@ static void term(uev_t *w, void *arg, int events)
 int main(int argc, char *argv[])
 {
 	int do_background = 1;
-	char *do_file = NULL;
 	int do_syslog  = 1;
+	char *file = NULL;
 	struct temp *s;
 	uev_ctx_t ctx;
 	uev_t sigterm;
@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
 			return 0;
 
 		case 'f':
-			do_file = optarg;
+			file = optarg;
 			break;
 
 		case 'l':
@@ -407,8 +407,8 @@ int main(int argc, char *argv[])
 		uev_timer_init(&ctx, &s->watcher, poll_temp, s, 100, POLL_INTERVAL);
 	}
 
-	if (do_file)
-		uev_timer_init(&ctx, &filer, write_file, do_file, 100, POLL_INTERVAL);
+	if (file)
+		uev_timer_init(&ctx, &filer, write_file, file, 100, POLL_INTERVAL);
 
 	return uev_run(&ctx, 0);
 }
