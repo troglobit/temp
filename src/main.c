@@ -40,6 +40,7 @@ struct temp {
 
 static TAILQ_HEAD(shead, temp) sensors = TAILQ_HEAD_INITIALIZER(sensors);
 static int do_quiet;
+static char *prognm;
 
 
 static char *paste(char *path, size_t len, char *file, size_t offset)
@@ -334,6 +335,41 @@ static void term(uev_t *w, void *arg, int events)
 	uev_exit(w->ctx);
 }
 
+static int usage(int code)
+{
+	printf("Usage:\n"
+	       "  %s [-hnqs] [-f FILE] [-i MSEC] [-l LEVEL] [-t PATH]\n"
+	       "\n"
+	       "Options:\n"
+	       "  -h         Show this help text\n"
+	       "  -f FILE    File to save temperature sensor data in JSON format\n"
+	       "  -i MSEC    Poll interval in milliseconds, default: %d\n"
+	       "  -l LEVEL   Set log level: none, err, notice (default), info, debug\n"
+	       "  -n         Run in foreground, do not detach from controlling terminal\n"
+	       "  -q         Quiet mode, useful with -f option\n"
+	       "  -s         Use syslog, even if running in foreground, default w/o -n\n"
+	       "  -t PATH    Path to temperature sensor, may be given multiple times\n"
+	       "\n"
+	       "Example:\n"
+	       "  tempd -n -t /sys/class/hwmon/hwmon1/temp1_input -l debug -i 100\n",
+	       prognm, POLL_INTERVAL);
+
+	return code;
+}
+
+static char *progname(char *arg0)
+{
+       char *nm;
+
+       nm = strrchr(arg0, '/');
+       if (nm)
+	       nm++;
+       else
+	       nm = arg0;
+
+       return nm;
+}
+
 int main(int argc, char *argv[])
 {
 	int poll_interval = POLL_INTERVAL;
@@ -347,11 +383,11 @@ int main(int argc, char *argv[])
 	uev_t filer;
 	int c;
 
+	prognm = progname(argv[0]);
 	while ((c = getopt(argc, argv, "hf:i:l:nqst:")) != EOF) {
 		switch (c) {
 		case 'h':
-			printf("usage: %s [-hnqs] [-f FILE] [-i MSEC] [-l LOG_LEVEL] [-t PATH]\n", argv[0]);
-			return 0;
+			return usage(0);
 
 		case 'f':
 			file = optarg;
@@ -390,7 +426,7 @@ int main(int argc, char *argv[])
 			break;
 
 		default:
-			return 1;
+			return usage(1);
 		}
 	}
 
