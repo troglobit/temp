@@ -180,7 +180,12 @@ static char *sensor_thermal(struct temp *sensor, char *temp, char *path, size_t 
 	read_file(paste(path, len, "type", offset), sensor->name, sizeof(sensor->name));
 
 	if (fexist(paste(path, len, THERMAL_TRIP, offset)))
-		return sensor->crit = path;
+		sensor->crit = path;
+
+	if (!sensor->crit || sanity_check(sensor->crit)) {
+		sensor->crit = NULL;
+		free(path);
+	}
 
 	return sensor->name[0] ? sensor->name : NULL;
 }
