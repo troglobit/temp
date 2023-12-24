@@ -220,12 +220,12 @@ fail:
 	return NULL;
 }
 
-static void add_sensor(char *path, int silent)
+static void add_sensor(char *path, int probe)
 {
 	struct temp *sensor;
 
 	if (!fexist(path)) {
-		if (!silent)
+		if (!probe)
 			ERR(errno, "Missing sensor %s, skipping", path);
 		return;
 	}
@@ -238,14 +238,14 @@ static void add_sensor(char *path, int silent)
 	sensor->temp = strdup(path);
 	if (!sensor->temp) {
 	fail:
-		if (!silent)
+		if (!probe)
 			ERR(errno, "Failed setting up sensor %s", path);
 		free(sensor);
 		return;
 	}
 
 	if (!find_sensor(sensor, path)) {
-		if (!silent)
+		if (!probe)
 			ERR(0, "Cannot find sensor %s, skipping.", sensor->temp);
 		free(sensor->temp);
 		free(sensor);
@@ -270,6 +270,7 @@ static int find_hwmon(void)
 		if (d->d_type != DT_LNK)
 			continue;
 
+		DBG("Probed sensor: %s", d->d_name);
 		for (int i = 1; i < 10; i++) {
 			snprintf(path, sizeof(path), "%s%s/temp%d_input", HWMON_PATH, d->d_name, i);
 			add_sensor(path, 1);
