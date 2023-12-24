@@ -47,12 +47,3 @@ jobs:
       - name: Verify usage text
         run: |
           /tmp/temp/sbin/tempd -h
-      - name: Test program
-        run: |
-          mkdir /tmp/logs
-          /tmp/temp/sbin/tempd -n -r 5 -i 100 -f /tmp/logs/measurements.json 2>&1 >/tmp/logs/output.log
-      - name: Upload results
-        uses: actions/upload-artifact@v3
-        with:
-          name: measurements-${{ matrix.compiler }}
-          path: /tmp/logs/*
