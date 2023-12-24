@@ -39,6 +39,7 @@ struct temp {
 };
 
 static TAILQ_HEAD(shead, temp) sensors = TAILQ_HEAD_INITIALIZER(sensors);
+static int do_quiet;
 
 
 static char *paste(char *path, size_t len, char *file, size_t offset)
@@ -310,8 +311,8 @@ static void poll_temp(uev_t *w, void *arg, int events)
 	if (sensor->crit)
 		snprintf(crit, sizeof(crit), ", critical %.1f°C", sensor->tcrit);
 
-	LOG("%15s: current %.1f°C, mean %.1f°C%s", sensor->name,
-	    temp, calc_mean(sensor), crit);
+	if (!do_quiet)
+		LOG("%15s: current %.1f°C, mean %.1f°C%s", sensor->name, temp, calc_mean(sensor), crit);
 }
 
 static void term(uev_t *w, void *arg, int events)
@@ -346,10 +347,10 @@ int main(int argc, char *argv[])
 	uev_t filer;
 	int c;
 
-	while ((c = getopt(argc, argv, "hf:i:l:nst:")) != EOF) {
+	while ((c = getopt(argc, argv, "hf:i:l:nqst:")) != EOF) {
 		switch (c) {
 		case 'h':
-			printf("usage: %s [-hns] [-f FILE] [-i MSEC] [-l LOG_LEVEL] [-t PATH]\n", argv[0]);
+			printf("usage: %s [-hnqs] [-f FILE] [-i MSEC] [-l LOG_LEVEL] [-t PATH]\n", argv[0]);
 			return 0;
 
 		case 'f':
@@ -374,6 +375,10 @@ int main(int argc, char *argv[])
 		case 'n':
 			do_background = 0;
 			do_syslog--;
+			break;
+
+		case 'q':
+			do_quiet = 1;
 			break;
 
 		case 's':
