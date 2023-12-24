@@ -30,13 +30,14 @@ struct temp {
 	char *crit;
 
 	float tcrit;
-	float data[10];
-	int   pos;
+	float tdata[10];
+	int   tdpos;
 
 	uev_t watcher;
 };
 
 static TAILQ_HEAD(shead, temp) sensors = TAILQ_HEAD_INITIALIZER(sensors);
+
 
 static char *paste(char *path, size_t len, char *file, size_t offset)
 {
@@ -244,15 +245,15 @@ static int find_hwmon(void)
 
 static float calc_mean(struct temp *sensor)
 {
-	size_t i, valid = 0, num = NELEMS(sensor->data);
+	size_t i, valid = 0, num = NELEMS(sensor->tdata);
 	float  mean = 0.0;
 
 	for (i = 0; i < num; i++) {
-		float data = sensor->data[i];
+		float tdata = sensor->tdata[i];
 
-		if (data != 0.0)
+		if (tdata != 0.0)
 			valid++;
-		mean += data;
+		mean += tdata;
 	}
 
 	return mean / valid;
@@ -265,9 +266,9 @@ static void poll_temp(uev_t *w, void *arg, int events)
 	float temp;
 
 	temp = read_temp(sensor->temp);
-	sensor->data[sensor->pos++] = temp;
-	if (sensor->pos == NELEMS(sensor->data))
-		sensor->pos = 0;
+	sensor->tdata[sensor->tdpos++] = temp;
+	if (sensor->tdpos == NELEMS(sensor->tdata))
+		sensor->tdpos = 0;
 
 	if (sensor->crit)
 		snprintf(crit, sizeof(crit), ", critical %.1f°C", sensor->tcrit);
