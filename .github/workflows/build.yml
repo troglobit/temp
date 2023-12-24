@@ -1,0 +1,58 @@
+name: Bob the Builder
+
+# Run on all branches, including all pull requests, except the 'dev'
+# branch since that's where we run Coverity Scan (limited tokens/day)
+on:
+  push:
+    branches:
+      - '**'
+      - '!dev'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    # Verify we can build on latest Ubuntu with both gcc and clang
+    name: ${{ matrix.compiler }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+      fail-fast: false
+    env:
+      MAKEFLAGS: -j3
+      CC: ${{ matrix.compiler }}
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install pkg-config tree jq libuev-dev libite-dev
+      - uses: actions/checkout@v3
+      - name: Configure
+        run: |
+          ./autogen.sh
+          ./configure --prefix=/usr --exec-prefix= --sysconfdir=/etc --localstatedir=/var
+      - name: Build
+        run: |
+          make V=1
+      - name: Install to /tmp
+        run: |
+          DESTDIR=/tmp/temp make install-strip
+          tree /tmp/temp || true
+      - name: Inspect binary
+        run: |
+          ldd  /tmp/temp/sbin/tempd
+          size /tmp/temp/sbin/tempd
+      - name: Verify usage text
+        run: |
+          /tmp/temp/sbin/tempd -h
+      - name: Test program
+        run: |
+          mkdir /tmp/logs
+          /tmp/temp/sbin/tempd -n -r 5 -i 100 -f /tmp/logs/measurements.json 2>&1 >/tmp/logs/output.log
+      - name: Upload results
+        uses: actions/upload-artifact@v3
+        with:
+          name: measurements-${{ matrix.compiler }}
+          path: /tmp/logs/*
