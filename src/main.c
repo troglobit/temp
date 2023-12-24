@@ -13,6 +13,8 @@
 
 #include "log.h"
 
+#define POLL_INTERVAL 2000
+
 #define HWMON_PATH    "/sys/class/hwmon/"
 #define HWMON_NAME    "temp%d_label"
 #define HWMON_TEMP    "temp%d_input"
@@ -361,7 +363,7 @@ int main(int argc, char *argv[])
 
 	TAILQ_FOREACH(s, &sensors, link) {
 		s->tcrit = read_temp(s->crit);
-		uev_timer_init(&ctx, &s->watcher, poll_temp, s, 100, 2000);
+		uev_timer_init(&ctx, &s->watcher, poll_temp, s, 100, POLL_INTERVAL);
 	}
 
 	return uev_run(&ctx, 0);
