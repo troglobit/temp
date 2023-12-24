@@ -257,27 +257,25 @@ static void add_sensor(char *path, int probe)
 
 static int find_hwmon(void)
 {
-	struct dirent *d;
-	DIR *dir;
+	struct dirent **list, *d;
+	int i = 0, num;
 
-	dir = opendir(HWMON_PATH);
-	if (!dir)
-		return -1;
-
-	while ((d = readdir(dir))) {
+	num = scandir(HWMON_PATH, &list, NULL, alphasort);
+	for (d = list[i]; i < num; d = list[++i]) {
 		char path[sizeof(HWMON_PATH) + strlen(d->d_name) + 14];
 
 		if (d->d_type != DT_LNK)
 			continue;
 
 		DBG("Probed sensor: %s", d->d_name);
-		for (int i = 1; i < 10; i++) {
-			snprintf(path, sizeof(path), "%s%s/temp%d_input", HWMON_PATH, d->d_name, i);
+		for (int j = 1; j < 10; j++) {
+			snprintf(path, sizeof(path), "%s%s/temp%d_input", HWMON_PATH, d->d_name, j);
 			add_sensor(path, 1);
 		}
-	}
 
-	closedir(dir);
+		free(d);
+	}
+	free(list);
 
 	return TAILQ_EMPTY(&sensors);
 }
