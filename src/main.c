@@ -112,12 +112,17 @@ static float read_temp(const char *path)
 
 	DBG("Reading sensor %s", path);
 	if (read_file(path, buf, sizeof(buf))) {
+		const char *err;
 		int tmp;
 
 		DBG("Raw temp %s", buf);
-		tmp  = atoi(buf);
-		temp = (float)tmp / 1000;
-		DBG("Got temp %.1f°C", temp);
+		tmp  = strtonum(buf, -150000, 150000, &err);
+		if (err) {
+			DBG("Temperature reading %s, skipping ...", err);
+		} else {
+			temp = (float)tmp / 1000;
+			DBG("Got temp %.1f°C", temp);
+		}
 	}
 
 	return temp;
@@ -376,6 +381,7 @@ int main(int argc, char *argv[])
 	int do_background = 1;
 	int do_syslog  = 1;
 	char *file = NULL;
+	const char *err;
 	struct temp *s;
 	uev_ctx_t ctx;
 	uev_t sigterm;
@@ -394,9 +400,9 @@ int main(int argc, char *argv[])
 			break;
 
 		case 'i':
-			poll_interval = atoi(optarg);
-			if (poll_interval < 100) {
-				ERR(0, "Invalid, or too small poll interval, min 100 msec.");
+			poll_interval = strtonum(optarg, 100, LLONG_MAX, &err);
+			if (err) {
+				ERR(0, "Poll interval %s, min 100 msec.", err);
 				return 1;
 			}
 			break;
