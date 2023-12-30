@@ -127,12 +127,15 @@ static float read_temp(const char *path)
 	return temp;
 }
 
-static int sanity_check(const char *path)
+static int sanity_check(const char *path, float *temp)
 {
-	float temp = read_temp(path);
+	float tmp = read_temp(path);
 
-	if (temp == 0.0 ||  temp < -150.0 || temp > 150.0)
+	if (tmp == 0.0 || tmp < -150.0 || tmp > 150.0)
 		return 1;
+
+	if (temp)
+		*temp = tmp;
 
 	return 0;
 }
@@ -148,7 +151,7 @@ static char *sensor_hwmon(struct temp *sensor, char *temp, char *path, size_t le
 	}
 
 	DBG("Got ID %d", sensor->id);
-	if (sanity_check(temp)) {
+	if (sanity_check(temp, NULL)) {
 		INFO("Improbable value detected, skipping %s", temp);
 		goto fail;
 	}
@@ -160,8 +163,10 @@ static char *sensor_hwmon(struct temp *sensor, char *temp, char *path, size_t le
 	snprintf(file, sizeof(file), HWMON_TRIP, sensor->id);
 	if (fexist(paste(path, len, file, offset)))
 		sensor->crit = path;
+
+	if (!sensor->crit || sanity_check(sensor->crit, &sensor->tcrit)) {
 fail:
-	if (!sensor->crit || sanity_check(sensor->crit)) {
+		sensor->tcrit = 100.0;
 		sensor->crit = NULL;
 		free(path);
 	}
@@ -474,10 +479,8 @@ int main(int argc, char *argv[])
 	uev_signal_init(&ctx, &sigterm, term, NULL, SIGTERM);
 	uev_signal_init(&ctx, &sigint,  term, NULL, SIGINT);
 
-	TAILQ_FOREACH(s, &sensors, link) {
-		s->tcrit = read_temp(s->crit);
+	TAILQ_FOREACH(s, &sensors, link)
 		uev_timer_init(&ctx, &s->watcher, poll_temp, s, 100, poll_interval);
-	}
 
 	if (file)
 		uev_timer_init(&ctx, &filer, write_file, file, 100, poll_interval);
