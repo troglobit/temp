@@ -180,16 +180,23 @@ static char *sensor_thermal(struct temp *sensor, char *temp, char *path, size_t 
 
 	if (sscanf(temp, THERMAL_PATH "thermal_zone%d/temp", &sensor->id) != 1) {
 		INFO("Failed reading ID from %s", temp);
-		return NULL;
+		goto fail;
 	}
 
 	DBG("Got ID %d", sensor->id);
+	if (sanity_check(temp, NULL)) {
+		INFO("Improbable value detected, skipping %s", temp);
+		goto fail;
+	}
+
 	read_file(paste(path, len, "type", offset), sensor->name, sizeof(sensor->name));
 
 	if (fexist(paste(path, len, THERMAL_TRIP, offset)))
 		sensor->crit = path;
 
-	if (!sensor->crit || sanity_check(sensor->crit)) {
+	if (!sensor->crit || sanity_check(sensor->crit, &sensor->tcrit)) {
+	fail:
+		sensor->tcrit = 100.0;
 		sensor->crit = NULL;
 		free(path);
 	}
